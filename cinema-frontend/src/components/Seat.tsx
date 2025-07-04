@@ -1,43 +1,48 @@
-import React from 'react';
-import { FaChair } from 'react-icons/fa';
-import clsx from 'clsx';
+import { useState } from 'react';
 
 interface SeatProps {
-  seatNumber: string;
-  status: 'available' | 'booked' | 'unavailable' | 'selected';
-  category: 'gold' | 'silver';
-  onClick: () => void;
+  seat: {
+    seatId: string;
+    status: 'available' | 'booked' | 'unavailable' | 'selected';
+    category: 'gold' | 'silver';
+    price: number;
+    bookedBy?: { name: string; email: string; phone: string };
+  };
+  onSelect: (seatId: string) => void;
 }
 
-const Seat: React.FC<SeatProps> = ({ seatNumber, status,  onClick }) => {
-  return (
-    <button
-      className={clsx(
-        'w-10 h-10 m-1 rounded-lg flex items-center justify-center border-2 text-xs font-bold transition-all duration-200 relative',
-        {
-          // Available seats
-          'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100 hover:border-blue-400': 
-            status === 'available',
-          // Booked seats
-          'bg-red-400 text-white border-red-500 cursor-not-allowed': 
-            status === 'booked',
-          // Unavailable seats
-          'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-400': 
-            status === 'unavailable',
-          // Selected seats
-          'bg-blue-700 text-white border-blue-800 shadow-lg': 
-            status === 'selected',
-        }
-      )}
-      onClick={status === 'available' || status === 'selected' ? onClick : undefined}
-      disabled={status === 'unavailable' || status === 'booked'}
-    >
-      <span className="absolute top-0 left-0 text-[8px] font-bold p-0.5">
-        {seatNumber}
-      </span>
-      <FaChair className="mt-1" />
-    </button>
-  );
-};
+export default function Seat({ seat, onSelect }: SeatProps) {
+  const [isHovered, setIsHovered] = useState(false);
 
-export default Seat;
+  const getSeatStyles = () => {
+    switch (seat.status) {
+      case 'available':
+        return 'bg-blue-50 border-2 border-blue-300';
+      case 'selected':
+        return 'bg-blue-700 border-2 border-blue-800 text-white';
+      case 'booked':
+        return 'bg-red-400 border-2 border-red-500';
+      case 'unavailable':
+        return 'bg-gray-300 border-2 border-gray-400';
+      default:
+        return '';
+    }
+  };
+
+  return (
+    <div
+      className={`w-10 h-10 rounded flex items-center justify-center text-sm m-1 cursor-pointer ${getSeatStyles()}`}
+      onClick={() => seat.status === 'available' || seat.status === 'selected' ? onSelect(seat.seatId) : null}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {seat.seatId}
+      {isHovered && seat.status === 'booked' && seat.bookedBy && (
+        <div className="absolute z-10 bg-white p-2 rounded shadow-lg border border-blue-200 text-blue-900 text-xs">
+          <p>Name: {seat.bookedBy.name}</p>
+          <p>Phone: {seat.bookedBy.phone}</p>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,106 +1,105 @@
-"use client"
-import React, { useState } from 'react';
+'use client';
+
+import { useEffect, useState } from 'react';
+import axios from 'axios';
 import Seat from './Seat';
+import BookingModal from './BookingModal';
 import { X, Plus, Minus, ShoppingCart } from 'lucide-react';
 
-type SeatStatus = 'available' | 'booked' | 'unavailable' | 'selected';
-
 interface SeatData {
-  status: SeatStatus;
+  seatId: string;
+  row: string;
+  column: number;
+  status: 'available' | 'booked' | 'unavailable' | 'selected';
   category: 'gold' | 'silver';
   price: number;
+  bookedBy?: { name: string; email: string; phone: string };
 }
 
-const SeatGrid: React.FC = () => {
-  const [showBookingModal, setShowBookingModal] = useState(false);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+export default function Home() {
+  const [seats, setSeats] = useState<SeatData[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Define pricing
-  const goldPrice = 250;
-  const silverPrice = 150;
-  
-  // Define rows (A-J, 10 rows total)
-  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-  const goldRows = ['A', 'B', 'C', 'D', 'E']; // First 5 rows are gold
-  const silverRows = ['F', 'G', 'H', 'I', 'J']; // Last 5 rows are silver
-  
-  // Initialize seat map with 10 rows, 12 columns (6 left + 6 right)
-  const initializeSeatMap = (): Record<string, SeatData> => {
-    const seatMap: Record<string, SeatData> = {};
-    
-    rows.forEach(row => {
-      const isGold = goldRows.includes(row);
-      for (let col = 1; col <= 12; col++) {
-        const seatId = `${row}${col}`;
-        // Add some random booked/unavailable seats for demo
-        const randomStatus = Math.random();
-        let status: SeatStatus = 'available';
-        
-        if (randomStatus < 0.1) status = 'booked';
-        else if (randomStatus < 0.15) status = 'unavailable';
-        
-        seatMap[seatId] = {
-          status,
-          category: isGold ? 'gold' : 'silver',
-          price: isGold ? goldPrice : silverPrice
-        };
+  const goldPrice = 15;
+  const silverPrice = 10;
+  // const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+  const goldRows = ['A', 'B', 'C', 'D', 'E'];
+  const silverRows = ['F', 'G', 'H', 'I', 'J'];
+  const columns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+  useEffect(() => {
+    const fetchSeats = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get('http://localhost:5000/api/seats');
+        console.log('Fetched seats:', response.data);
+        if (response.data.length === 0) {
+          setError('No seats found in the database.');
+        } else {
+          const mappedSeats = response.data.map((seat: SeatData) => ({
+            ...seat,
+            status: seat.status === 'booked' ? 'booked' : 'available',
+          }));
+          setSeats(mappedSeats);
+          setError(null);
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch seats:', error);
+        setError('Failed to load seats. Ensure the backend is running at http://localhost:5000.');
+      } finally {
+        setLoading(false);
       }
-    });
-    
-    return seatMap;
-  };
+    };
 
-  const [seatMap, setSeatMap] = useState<Record<string, SeatData>>(initializeSeatMap());
+    fetchSeats();
+  }, []);
 
-  const handleSeatClick = (seatId: string) => {
-    const seat = seatMap[seatId];
-    if (seat.status === 'unavailable' || seat.status === 'booked') return;
+  const handleSeatSelect = (seatId: string) => {
+    const seat = seats.find((s) => s.seatId === seatId);
+    if (!seat || seat.status === 'unavailable' || seat.status === 'booked') return;
 
     if (seat.status === 'selected') {
-      // Deselect the seat
-      setSeatMap(prev => ({
-        ...prev,
-        [seatId]: { ...prev[seatId], status: 'available' }
-      }));
-      setSelectedSeats(prev => prev.filter(id => id !== seatId));
-      setQuantities(prev => {
+      setSeats((prev) =>
+        prev.map((s) =>
+          s.seatId === seatId ? { ...s, status: 'available' } : s
+        )
+      );
+      setSelectedSeats((prev) => prev.filter((id) => id !== seatId));
+      setQuantities((prev) => {
         const newQuantities = { ...prev };
         delete newQuantities[seatId];
         return newQuantities;
       });
     } else {
-      // Select the seat
-      setSeatMap(prev => ({
-        ...prev,
-        [seatId]: { ...prev[seatId], status: 'selected' }
-      }));
-      setSelectedSeats(prev => {
-        if (!prev.includes(seatId)) {
-          return [...prev, seatId];
-        }
-        return prev;
-      });
+      setSeats((prev) =>
+        prev.map((s) =>
+          s.seatId === seatId ? { ...s, status: 'selected' } : s
+        )
+      );
+      setSelectedSeats((prev) => (prev.includes(seatId) ? prev : [...prev, seatId]));
       if (!quantities[seatId]) {
-        setQuantities(prev => ({ ...prev, [seatId]: 1 }));
+        setQuantities((prev) => ({ ...prev, [seatId]: 1 }));
       }
     }
   };
 
   const handleQuantityChange = (seatId: string, change: number) => {
-    setQuantities(prev => {
+    setQuantities((prev) => {
       const newQuantity = Math.max(1, Math.min(5, (prev[seatId] || 1) + change));
       return { ...prev, [seatId]: newQuantity };
     });
   };
 
   const handleRemoveSeat = (seatId: string) => {
-    setSeatMap(prev => ({
-      ...prev,
-      [seatId]: { ...prev[seatId], status: 'available' }
-    }));
-    setSelectedSeats(prev => prev.filter(id => id !== seatId));
-    setQuantities(prev => {
+    setSeats((prev) =>
+      prev.map((s) => (s.seatId === seatId ? { ...s, status: 'available' } : s))
+    );
+    setSelectedSeats((prev) => prev.filter((id) => id !== seatId));
+    setQuantities((prev) => {
       const newQuantities = { ...prev };
       delete newQuantities[seatId];
       return newQuantities;
@@ -109,16 +108,14 @@ const SeatGrid: React.FC = () => {
 
   const getTotalPrice = () => {
     return selectedSeats.reduce((total, seatId) => {
-      const seat = seatMap[seatId];
+      const seat = seats.find((s) => s.seatId === seatId);
       const quantity = quantities[seatId] || 1;
-      return total + (seat.price * quantity);
+      return total + (seat ? seat.price * quantity : 0);
     }, 0);
   };
 
   const getTotalSeats = () => {
-    return selectedSeats.reduce((total, seatId) => {
-      return total + (quantities[seatId] || 1);
-    }, 0);
+    return selectedSeats.reduce((total, seatId) => total + (quantities[seatId] || 1), 0);
   };
 
   const handleProceedToPayment = () => {
@@ -127,23 +124,31 @@ const SeatGrid: React.FC = () => {
     }
   };
 
-  const handleConfirmBooking = () => {
-    // Here you would typically integrate with a payment gateway
-    alert(`Booking confirmed! Total: ₹${getTotalPrice()} for ${getTotalSeats()} seats`);
-    
-    // Mark seats as booked
-    setSeatMap(prev => {
-      const newSeatMap = { ...prev };
-      selectedSeats.forEach(seatId => {
-        newSeatMap[seatId] = { ...newSeatMap[seatId], status: 'booked' };
-      });
-      return newSeatMap;
-    });
-    
-    // Reset selections
-    setSelectedSeats([]);
-    setQuantities({});
-    setShowBookingModal(false);
+  const handleConfirmBooking = async (formData: { name: string; email: string; phone: string }) => {
+    try {
+      for (const seatId of selectedSeats) {
+        const quantity = quantities[seatId] || 1;
+        for (let i = 0; i < quantity; i++) {
+          await axios.post('http://localhost:5000/api/seats/book', {
+            seatId,
+            ...formData,
+          });
+        }
+      }
+      setSeats((prev) =>
+        prev.map((s) =>
+          selectedSeats.includes(s.seatId)
+            ? { ...s, status: 'booked', bookedBy: formData }
+            : s
+        )
+      );
+      setSelectedSeats([]);
+      setQuantities({});
+      setShowBookingModal(false);
+    } catch (error) {
+      console.error('Booking failed:', error);
+      setError('Failed to book seats. Please try again.');
+    }
   };
 
   const renderSeatSection = (sectionRows: string[], title: string, price: number) => {
@@ -151,53 +156,53 @@ const SeatGrid: React.FC = () => {
       <div className="mb-8">
         <div className="text-center mb-4">
           <h3 className="text-xl font-bold text-blue-900 mb-2">{title}</h3>
-          <p className="text-lg font-semibold text-blue-700">₹{price} per seat</p>
+          <p className="text-lg font-semibold text-blue-700">${price} per seat</p>
         </div>
-        
         <div className="space-y-2">
-          {sectionRows.map(row => (
+          {sectionRows.map((row) => (
             <div key={row} className="flex justify-center items-center gap-2">
-              {/* Row label */}
               <div className="w-8 text-center font-bold text-blue-900">{row}</div>
-              
-              {/* Left section - seats 1-6 */}
               <div className="flex">
-                {[1, 2, 3, 4, 5, 6].map(col => {
+                {columns.slice(0, 6).map((col) => {
                   const seatId = `${row}${col}`;
-                  const seat = seatMap[seatId];
-                  return (
+                  const seat = seats.find((s) => s.seatId === seatId);
+                  return seat ? (
                     <Seat
                       key={seatId}
-                      seatNumber={seatId}
-                      status={seat.status}
-                      category={seat.category}
-                      onClick={() => handleSeatClick(seatId)}
+                      seat={seat}
+                      onSelect={handleSeatSelect}
                     />
+                  ) : (
+                    <div
+                      key={seatId}
+                      className="w-10 h-10 bg-gray-300 border-2 border-gray-400 rounded flex items-center justify-center text-blue-900 text-sm m-1"
+                    >
+                      {seatId}
+                    </div>
                   );
                 })}
               </div>
-              
-              {/* Aisle gap */}
               <div className="w-8"></div>
-              
-              {/* Right section - seats 7-12 */}
               <div className="flex">
-                {[7, 8, 9, 10, 11, 12].map(col => {
+                {columns.slice(6).map((col) => {
                   const seatId = `${row}${col}`;
-                  const seat = seatMap[seatId];
-                  return (
+                  const seat = seats.find((s) => s.seatId === seatId);
+                  return seat ? (
                     <Seat
                       key={seatId}
-                      seatNumber={seatId}
-                      status={seat.status}
-                      category={seat.category}
-                      onClick={() => handleSeatClick(seatId)}
+                      seat={seat}
+                      onSelect={handleSeatSelect}
                     />
+                  ) : (
+                    <div
+                      key={seatId}
+                      className="w-10 h-10 bg-gray-300 border-2 border-gray-400 rounded flex items-center justify-center text-blue-900 text-sm m-1"
+                    >
+                      {seatId}
+                    </div>
                   );
                 })}
               </div>
-              
-              {/* Row label */}
               <div className="w-8 text-center font-bold text-blue-900">{row}</div>
             </div>
           ))}
@@ -208,14 +213,12 @@ const SeatGrid: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto p-4 bg-blue-50 rounded-lg">
-      {/* Screen */}
       <div className="text-center mb-8">
         <div className="bg-blue-900 text-white py-3 px-8 rounded-lg inline-block mb-4">
           <h2 className="text-lg font-bold">🎬 SCREEN</h2>
         </div>
       </div>
 
-      {/* Legend */}
       <div className="flex justify-center gap-6 mb-8 text-sm">
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 bg-blue-50 border-2 border-blue-300 rounded"></div>
@@ -235,17 +238,25 @@ const SeatGrid: React.FC = () => {
         </div>
       </div>
 
-      {/* Gold Section */}
-      {renderSeatSection(goldRows, '🏆 GOLD CLASS', goldPrice)}
+      {loading && (
+        <div className="text-center text-blue-900 mb-4">Loading seats...</div>
+      )}
+      {error && (
+        <div className="text-red-500 text-center mb-4">{error}</div>
+      )}
+      {!loading && !error && seats.length === 0 && (
+        <div className="text-center text-blue-900 mb-4">
+          No seats available. Please check the backend.
+        </div>
+      )}
 
-      {/* Silver Section */}
+      {renderSeatSection(goldRows, '🏆 GOLD CLASS', goldPrice)}
       {renderSeatSection(silverRows, '🥈 SILVER CLASS', silverPrice)}
 
-      {/* Column numbers */}
       <div className="flex justify-center items-center gap-2 mt-4">
         <div className="w-8"></div>
         <div className="flex">
-          {[1, 2, 3, 4, 5, 6].map(col => (
+          {columns.slice(0, 6).map((col) => (
             <div key={`left-${col}`} className="w-10 text-center text-sm font-bold text-blue-900 m-1">
               {col}
             </div>
@@ -253,7 +264,7 @@ const SeatGrid: React.FC = () => {
         </div>
         <div className="w-8"></div>
         <div className="flex">
-          {[7, 8, 9, 10, 11, 12].map(col => (
+          {columns.slice(6).map((col) => (
             <div key={`right-${col}`} className="w-10 text-center text-sm font-bold text-blue-900 m-1">
               {col}
             </div>
@@ -262,7 +273,6 @@ const SeatGrid: React.FC = () => {
         <div className="w-8"></div>
       </div>
 
-      {/* Selected Seats Cart */}
       {selectedSeats.length > 0 && (
         <div className="mt-8 p-6 bg-white rounded-lg shadow-lg border-2 border-blue-200">
           <div className="flex items-center justify-between mb-4">
@@ -277,10 +287,9 @@ const SeatGrid: React.FC = () => {
               Proceed to Payment
             </button>
           </div>
-          
           <div className="space-y-3">
-            {selectedSeats.map(seatId => {
-              const seat = seatMap[seatId];
+            {selectedSeats.map((seatId) => {
+              const seat = seats.find((s) => s.seatId === seatId);
               const quantity = quantities[seatId] || 1;
               return (
                 <div key={seatId} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
@@ -290,7 +299,7 @@ const SeatGrid: React.FC = () => {
                     </span>
                     <div>
                       <p className="font-semibold text-blue-900">
-                        {seat.category === 'gold' ? '🏆 Gold' : '🥈 Silver'} Class
+                        {seat?.category === 'gold' ? '🏆 Gold' : '🥈 Silver'} Class
                       </p>
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-gray-600">Quantity:</span>
@@ -314,7 +323,7 @@ const SeatGrid: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-blue-900">
-                      ₹{seat.price * quantity}
+                      ${seat ? seat.price * quantity : 0}
                     </span>
                     <button
                       onClick={() => handleRemoveSeat(seatId)}
@@ -327,67 +336,23 @@ const SeatGrid: React.FC = () => {
               );
             })}
           </div>
-          
           <div className="border-t pt-4 mt-4">
             <div className="flex justify-between items-center">
               <span className="text-xl font-bold text-blue-900">Total Amount:</span>
-              <span className="text-2xl font-bold text-blue-900">₹{getTotalPrice()}</span>
+              <span className="text-2xl font-bold text-blue-900">${getTotalPrice()}</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* Booking Confirmation Modal */}
       {showBookingModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-blue-900 mb-2">Confirm Booking</h2>
-              <p className="text-gray-600">Review your seat selection</p>
-            </div>
-            
-            <div className="space-y-4 mb-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="font-semibold text-blue-900 mb-2">Selected Seats:</h3>
-                <div className="flex flex-wrap gap-2">
-                  {selectedSeats.map(seatId => (
-                    <span key={seatId} className="bg-blue-700 text-white px-2 py-1 rounded text-sm">
-                      {seatId} ({quantities[seatId] || 1})
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-blue-900">Total Seats:</span>
-                <span className="font-bold text-blue-900">{getTotalSeats()}</span>
-              </div>
-              
-              <div className="flex justify-between items-center text-xl">
-                <span className="font-bold text-blue-900">Total Amount:</span>
-                <span className="font-bold text-blue-900">₹{getTotalPrice()}</span>
-              </div>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowBookingModal(false)}
-                className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmBooking}
-                className="flex-1 bg-blue-700 text-white py-3 rounded-lg font-semibold hover:bg-blue-800 transition-colors"
-              >
-                Confirm & Pay
-              </button>
-            </div>
-          </div>
-        </div>
+        <BookingModal
+          seatId={selectedSeats[0]}
+          price={getTotalPrice()}
+          onClose={() => setShowBookingModal(false)}
+          onConfirm={handleConfirmBooking}
+        />
       )}
     </div>
   );
-};
-
-export default SeatGrid;
+}
