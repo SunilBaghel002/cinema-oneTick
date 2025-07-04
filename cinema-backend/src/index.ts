@@ -12,7 +12,7 @@ app.use(express.json());
 
 // Seat Schema and Model
 interface IBooking {
-  date: string; // ISO date string (e.g., "2025-07-04")
+  date: string;
   bookedBy: {
     name: string;
     email: string;
@@ -67,12 +67,127 @@ const sendBookingConfirmation = async (
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: 'Seat Booking Confirmation',
+    subject: 'Your Seat Booking Confirmation',
     html: `
-      <h2>Booking Confirmation</h2>
-      <p>Dear ${name},</p>
-      <p>Your seat ${seatId} has been successfully booked for ${bookingDate}!</p>
-      <p>Thank you for choosing our service.</p>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #F5F6F5;
+            color: #1F2A44;
+          }
+          .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background-color: #FFFFFF;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          }
+          .header {
+            background-color: #1F2A44;
+            padding: 20px;
+            text-align: center;
+          }
+          .header img {
+            max-width: 150px;
+            height: auto;
+          }
+          .content {
+            padding: 30px;
+          }
+          h1 {
+            color: #1F2A44;
+            font-size: 24px;
+            margin-bottom: 20px;
+          }
+          p {
+            font-size: 16px;
+            line-height: 1.5;
+            margin: 10px 0;
+          }
+          .details {
+            background-color: #F5F6F5;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+          }
+          .details p {
+            margin: 5px 0;
+          }
+          .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #1F2A44;
+            color: #FFFFFF !important;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 16px;
+            margin: 20px 0;
+          }
+          .footer {
+            background-color: #1F2A44;
+            color: #FFFFFF;
+            padding: 20px;
+            text-align: center;
+            font-size: 14px;
+          }
+          .footer a {
+            color: #FFFFFF;
+            text-decoration: underline;
+          }
+          @media only screen and (max-width: 600px) {
+            .container {
+              margin: 10px;
+            }
+            .header img {
+              max-width: 120px;
+            }
+            h1 {
+              font-size: 20px;
+            }
+            p {
+              font-size: 14px;
+            }
+            .button {
+              padding: 10px 20px;
+              font-size: 14px;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <img src="https://via.placeholder.com/150x50?text=Logo" alt="Company Logo">
+          </div>
+          <div class="content">
+            <h1>Your Booking Confirmation</h1>
+            <p>Dear ${name},</p>
+            <p>Thank you for choosing our seat booking service. We are pleased to confirm your booking for the following details:</p>
+            <div class="details">
+              <p><strong>Seat:</strong> ${seatId}</p>
+              <p><strong>Date:</strong> ${bookingDate}</p>
+              <p><strong>Total Price:</strong> $${12}</p>
+            </div>
+            <p>We look forward to welcoming you. If you have any questions or need further assistance, please don't hesitate to contact us.</p>
+            <a href="https://example.com" class="button">View Your Booking</a>
+          </div>
+          <div class="footer">
+            <p><strong>Seat Booking Co.</strong></p>
+            <p>123 Event Street, City, Country</p>
+            <p>Email: support@seatbookingco.com | Phone: +1-234-567-8900</p>
+            <p><a href="https://example.com">www.seatbookingco.com</a></p>
+          </div>
+        </div>
+      </body>
+      </html>
     `,
   };
 
@@ -82,7 +197,6 @@ const sendBookingConfirmation = async (
 // Initialize Seats Function
 const initializeSeats = async (): Promise<void> => {
   try {
-    // Clear outdated data
     await Seat.deleteMany({ $or: [{ id: { $exists: true } }, { category: { $exists: true } }] });
     const existingSeats = await Seat.countDocuments();
     if (existingSeats > 0) {
@@ -96,12 +210,12 @@ const initializeSeats = async (): Promise<void> => {
 
     for (let row of rows) {
       for (let col of columns) {
-        const seatId = `${row}${col}`; // Generate seat ID (e.g., A1)
+        const seatId = `${row}${col}`;
         seats.push({
           seatId,
           row,
           column: col,
-          price: 12, // Standard category price
+          price: 12,
           bookings: [],
         });
       }
@@ -127,11 +241,10 @@ const initializeSeatsEndpoint = async (req: Request, res: Response): Promise<voi
 
 const getSeats = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { date } = req.query; // Date in YYYY-MM-DD format
+    const { date } = req.query;
     const targetDate = date ? date.toString() : new Date().toISOString().split('T')[0];
     const seats = await Seat.find();
 
-    // Map seats to include status for the requested date
     const seatsWithStatus = seats.map((seat) => {
       const booking = seat.bookings.find((b) => b.date === targetDate);
       return {
@@ -173,14 +286,12 @@ const bookSeat = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Check if seat is booked for the specified date
     const existingBooking = seat.bookings.find((b) => b.date === bookingDate);
     if (existingBooking) {
       res.status(400).json({ error: 'Seat is already booked for this date' });
       return;
     }
 
-    // Add new booking
     seat.bookings.push({
       date: bookingDate,
       bookedBy: { name, email, phone },
