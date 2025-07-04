@@ -10,7 +10,6 @@ interface SeatData {
   row: string;
   column: number;
   status: 'available' | 'booked';
-  category: 'gold' | 'silver';
   price: number;
   bookedBy?: { name: string; email: string; phone: string };
 }
@@ -20,13 +19,14 @@ export default function Home() {
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     const fetchSeats = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('http://localhost:5000/api/seats');
-        console.log('Fetched seats:', response.data); // Debug log
+        const response = await axios.get(`http://localhost:5000/api/seats?date=${selectedDate}`);
+        console.log('Fetched seats:', response.data);
         if (response.data.length === 0) {
           setError('No seats found in the database.');
         } else {
@@ -42,7 +42,7 @@ export default function Home() {
     };
 
     fetchSeats();
-  }, []);
+  }, [selectedDate]);
 
   const handleSeatSelect = (seatId: string) => {
     setSelectedSeat(seatId);
@@ -54,6 +54,23 @@ export default function Home() {
   return (
     <main className="min-h-screen p-8 bg-gray-100">
       <h1 className="text-3xl font-bold text-center mb-8 text-navy">Seat Booking System</h1>
+
+      <div className="flex justify-center mb-4">
+        <div>
+          <label className="block mb-1 text-navy">Select Date</label>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="p-2 border rounded"
+            min={new Date().toISOString().split('T')[0]}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-center mb-8">
+        <h3 className="text-lg font-semibold text-navy">Standard Seats ($12)</h3>
+      </div>
 
       {loading && (
         <div className="text-center text-navy mb-4">Loading seats...</div>
@@ -69,43 +86,9 @@ export default function Home() {
         </div>
       )}
 
-      <div className="flex justify-center mb-8">
-        <div className="mr-8">
-          <h3 className="text-lg font-semibold text-navy">Gold Seats ($15)</h3>
-        </div>
-        <div>
-          <h3 className="text-lg font-semibold text-navy">Silver Seats ($10)</h3>
-        </div>
-      </div>
-
       <div className="flex justify-center">
-        {/* Left Section (Gold: A-E) */}
-        <div className="grid grid-cols-6 gap-2 mr-8">
-          {rows.slice(0, 5).map((row) => (
-            <div key={row} className="flex gap-2">
-              {columns.map((col) => {
-                const seat = seats.find((s) => s.seatId === `${row}${col}`);
-                return seat ? (
-                  <Seat key={seat.seatId} seat={seat} onSelect={handleSeatSelect} />
-                ) : (
-                  <div
-                    key={`${row}${col}`}
-                    className="w-12 h-12 bg-gray-300 rounded-lg flex items-center justify-center text-navy text-sm"
-                  >
-                    {`${row}${col}`}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-
-        {/* Gap */}
-        <div className="w-16" />
-
-        {/* Right Section (Silver: F-J) */}
         <div className="grid grid-cols-6 gap-2">
-          {rows.slice(5).map((row) => (
+          {rows.map((row) => (
             <div key={row} className="flex gap-2">
               {columns.map((col) => {
                 const seat = seats.find((s) => s.seatId === `${row}${col}`);
@@ -128,7 +111,7 @@ export default function Home() {
       {selectedSeat && (
         <BookingModal
           seatId={selectedSeat}
-          price={seats.find((s) => s.seatId === selectedSeat)?.price || 10}
+          price={seats.find((s) => s.seatId === selectedSeat)?.price || 12}
           onClose={() => setSelectedSeat(null)}
         />
       )}

@@ -13,6 +13,7 @@ export default function BookingModal({ seatId, price, onClose }: BookingModalPro
     name: '',
     email: '',
     phone: '',
+    bookingDate: new Date().toISOString().split('T')[0], // Default to today
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,6 +36,17 @@ export default function BookingModal({ seatId, price, onClose }: BookingModalPro
       <p className="mb-2">Row: {seatId[0]}, Seat: {seatId.slice(1)}</p>
       <p className="mb-2">Price per seat: ${price}</p>
       <p className="mb-4">Total: ${price * quantity}</p>
+      <div className="mb-4">
+        <label className="block mb-1">Booking Date</label>
+        <input
+          type="date"
+          value={formData.bookingDate}
+          onChange={(e) => setFormData({ ...formData, bookingDate: e.target.value })}
+          className="w-full p-2 border rounded"
+          min={new Date().toISOString().split('T')[0]}
+          required
+        />
+      </div>
       <div className="mb-4">
         <label className="block mb-1">Quantity</label>
         <input

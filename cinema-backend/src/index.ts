@@ -11,32 +11,40 @@ app.use(cors());
 app.use(express.json());
 
 // Seat Schema and Model
-interface ISeat {
-  seatId: string;
-  row: string;
-  column: number;
-  status: 'available' | 'booked';
-  category: 'gold' | 'silver';
-  price: number;
-  bookedBy?: {
+interface IBooking {
+  date: string; // ISO date string (e.g., "2025-07-04")
+  bookedBy: {
     name: string;
     email: string;
     phone: string;
   };
+  status: 'booked';
+}
+
+interface ISeat {
+  seatId: string;
+  row: string;
+  column: number;
+  price: number;
+  bookings: IBooking[];
 }
 
 const seatSchema = new Schema<ISeat>({
   seatId: { type: String, required: true, unique: true },
   row: { type: String, required: true },
   column: { type: Number, required: true },
-  status: { type: String, enum: ['available', 'booked'], default: 'available' },
-  category: { type: String, enum: ['gold', 'silver'], required: true },
   price: { type: Number, required: true },
-  bookedBy: {
-    name: String,
-    email: String,
-    phone: String,
-  },
+  bookings: [
+    {
+      date: { type: String, required: true },
+      bookedBy: {
+        name: { type: String, required: true },
+        email: { type: String, required: true },
+        phone: { type: String, required: true },
+      },
+      status: { type: String, enum: ['booked'], default: 'booked' },
+    },
+  ],
 });
 
 const Seat = mongoose.model<ISeat>('Seat', seatSchema);
@@ -45,7 +53,8 @@ const Seat = mongoose.model<ISeat>('Seat', seatSchema);
 const sendBookingConfirmation = async (
   email: string,
   seatId: string,
-  name: string
+  name: string,
+  bookingDate: string
 ): Promise<void> => {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
@@ -62,7 +71,7 @@ const sendBookingConfirmation = async (
     html: `
       <h2>Booking Confirmation</h2>
       <p>Dear ${name},</p>
-      <p>Your seat ${seatId} has been successfully booked!</p>
+      <p>Your seat ${seatId} has been successfully booked for ${bookingDate}!</p>
       <p>Thank you for choosing our service.</p>
     `,
   };
@@ -73,8 +82,8 @@ const sendBookingConfirmation = async (
 // Initialize Seats Function
 const initializeSeats = async (): Promise<void> => {
   try {
-    // Clear outdated data with incorrect schema (e.g., id, isBooked)
-    await Seat.deleteMany({ id: { $exists: true } });
+    // Clear outdated data
+    await Seat.deleteMany({ $or: [{ id: { $exists: true } }, { category: { $exists: true } }] });
     const existingSeats = await Seat.countDocuments();
     if (existingSeats > 0) {
       console.log('Seats already initialized, skipping initialization.');
@@ -88,20 +97,17 @@ const initializeSeats = async (): Promise<void> => {
     for (let row of rows) {
       for (let col of columns) {
         const seatId = `${row}${col}`; // Generate seat ID (e.g., A1)
-        const category = row <= 'E' ? 'gold' : 'silver';
-        const price = row <= 'E' ? 15 : 10;
         seats.push({
           seatId,
           row,
           column: col,
-          status: 'available',
-          category,
-          price,
+          price: 12, // Standard category price
+          bookings: [],
         });
       }
     }
 
-    await Seat.deleteMany({}); // Clear any existing seats
+    await Seat.deleteMany({});
     await Seat.insertMany(seats);
     console.log('Seats initialized successfully');
   } catch (error) {
@@ -121,14 +127,33 @@ const initializeSeatsEndpoint = async (req: Request, res: Response): Promise<voi
 
 const getSeats = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { date } = req.query; // Date in YYYY-MM-DD format
+    const targetDate = date ? date.toString() : new Date().toISOString().split('T')[0];
     const seats = await Seat.find();
+
+    // Map seats to include status for the requested date
+    const seatsWithStatus = seats.map((seat) => {
+      const booking = seat.bookings.find((b) => b.date === targetDate);
+      return {
+        ...seat.toObject(),
+        status: booking ? 'booked' : 'available',
+        bookedBy: booking ? booking.bookedBy : null,
+      };
+    });
+
     if (seats.length === 0) {
-      await initializeSeats(); // Fallback: initialize if no seats found
+      await initializeSeats();
       const newSeats = await Seat.find();
-      res.json(newSeats);
+      const newSeatsWithStatus = newSeats.map((seat) => ({
+        ...seat.toObject(),
+        status: 'available',
+        bookedBy: null,
+      }));
+      res.json(newSeatsWithStatus);
       return;
     }
-    res.json(seats);
+
+    res.json(seatsWithStatus);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch seats' });
   }
@@ -136,19 +161,34 @@ const getSeats = async (req: Request, res: Response): Promise<void> => {
 
 const bookSeat = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { seatId, name, email, phone } = req.body;
-    const seat = await Seat.findOne({ seatId });
-
-    if (!seat || seat.status === 'booked') {
-      res.status(400).json({ error: 'Seat not available' });
+    const { seatId, name, email, phone, bookingDate } = req.body;
+    if (!bookingDate) {
+      res.status(400).json({ error: 'Booking date is required' });
       return;
     }
 
-    seat.status = 'booked';
-    seat.bookedBy = { name, email, phone };
+    const seat = await Seat.findOne({ seatId });
+    if (!seat) {
+      res.status(404).json({ error: 'Seat not found' });
+      return;
+    }
+
+    // Check if seat is booked for the specified date
+    const existingBooking = seat.bookings.find((b) => b.date === bookingDate);
+    if (existingBooking) {
+      res.status(400).json({ error: 'Seat is already booked for this date' });
+      return;
+    }
+
+    // Add new booking
+    seat.bookings.push({
+      date: bookingDate,
+      bookedBy: { name, email, phone },
+      status: 'booked',
+    });
     await seat.save();
 
-    await sendBookingConfirmation(email, seatId, name);
+    await sendBookingConfirmation(email, seatId, name, bookingDate);
     res.json({ message: 'Seat booked successfully', seat });
   } catch (error) {
     res.status(500).json({ error: 'Failed to book seat' });
@@ -164,7 +204,7 @@ app.post('/api/seats/book', bookSeat);
 mongoose.connect(process.env.MONGODB_URL || 'mongodb://localhost:27017/seat-booking')
   .then(async () => {
     console.log('Connected to MongoDB');
-    await initializeSeats(); // Initialize seats on server start
+    await initializeSeats();
     const PORT = process.env.PORT || 5000;
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })

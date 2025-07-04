@@ -4,7 +4,6 @@ interface SeatProps {
   seat: {
     seatId: string;
     status: 'available' | 'booked';
-    category: 'gold' | 'silver';
     price: number;
     bookedBy?: { name: string; email: string; phone: string };
   };
