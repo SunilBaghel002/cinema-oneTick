@@ -48,8 +48,8 @@ export default function Home() {
     setSelectedSeat(seatId);
   };
 
-  const rows = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
-  const columns = [1, 2, 3, 4, 5, 6];
+  const rows = ['A', 'B', 'C', 'D', 'E', 'F'];
+  const columns = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   return (
     <main className="min-h-screen p-8 bg-gray-100">
@@ -87,7 +87,7 @@ export default function Home() {
       )}
 
       <div className="flex justify-center">
-        <div className="grid grid-cols-6 gap-2">
+        <div className="grid grid-cols-10 gap-2">
           {rows.map((row) => (
             <div key={row} className="flex gap-2">
               {columns.map((col) => {
@@ -112,6 +112,7 @@ export default function Home() {
         <BookingModal
           seatId={selectedSeat}
           price={seats.find((s) => s.seatId === selectedSeat)?.price || 12}
+          bookingDate={selectedDate}
           onClose={() => setSelectedSeat(null)}
         />
       )}
