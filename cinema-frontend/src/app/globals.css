@@ -1,2 +1,32 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
+body {
+  background-color: #F5F6F5;
+  color: #1F2A44;
+}
+
+.seat {
+  @apply w-12 h-12 rounded-lg flex items-center justify-center cursor-pointer transition-all duration-200 font-semibold text-sm shadow-sm;
+}
+
+.seat-available {
+  @apply bg-gray-200 hover:bg-gray-300 text-navy border border-gray-400;
+}
+
+.seat-booked {
+  @apply bg-red-500 text-white border border-red-600;
+}
+
+.seat-selected {
+  @apply bg-blue-600 text-white border border-blue-700;
+}
+
+.modal {
+  @apply fixed top-0 right-0 h-full w-80 bg-white shadow-xl p-6 transform transition-transform duration-300 z-50;
+}
+
+.seat-tooltip {
+  @apply absolute bg-gray-800 text-white p-2 rounded text-xs mt-14 z-10;
+}
