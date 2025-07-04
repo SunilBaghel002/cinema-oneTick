@@ -3,26 +3,39 @@ import { FaChair } from 'react-icons/fa';
 import clsx from 'clsx';
 
 interface SeatProps {
-  seatNumber: number | string;
+  seatNumber: string;
   status: 'available' | 'booked' | 'unavailable' | 'selected';
+  category: 'gold' | 'silver';
   onClick: () => void;
 }
 
-const Seat: React.FC<SeatProps> = ({status, onClick }) => {
+const Seat: React.FC<SeatProps> = ({ seatNumber, status,  onClick }) => {
   return (
     <button
       className={clsx(
-        'w-10 h-10 m-1 rounded flex items-center justify-center border',
+        'w-10 h-10 m-1 rounded-lg flex items-center justify-center border-2 text-xs font-bold transition-all duration-200 relative',
         {
-          'bg-green-500 text-white': status === 'available',
-          'bg-yellow-400 text-black': status === 'booked',
-          'bg-gray-300 text-gray-500 cursor-not-allowed': status === 'unavailable',
-          'bg-green-800 text-white': status === 'selected',
+          // Available seats
+          'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100 hover:border-blue-400': 
+            status === 'available',
+          // Booked seats
+          'bg-red-400 text-white border-red-500 cursor-not-allowed': 
+            status === 'booked',
+          // Unavailable seats
+          'bg-gray-300 text-gray-500 cursor-not-allowed border-gray-400': 
+            status === 'unavailable',
+          // Selected seats
+          'bg-blue-700 text-white border-blue-800 shadow-lg': 
+            status === 'selected',
         }
       )}
-      onClick={status !== 'unavailable' ? onClick : undefined}
+      onClick={status === 'available' || status === 'selected' ? onClick : undefined}
+      disabled={status === 'unavailable' || status === 'booked'}
     >
-      <FaChair />
+      <span className="absolute top-0 left-0 text-[8px] font-bold p-0.5">
+        {seatNumber}
+      </span>
+      <FaChair className="mt-1" />
     </button>
   );
 };
